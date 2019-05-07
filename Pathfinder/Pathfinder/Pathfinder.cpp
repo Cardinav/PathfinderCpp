@@ -77,14 +77,17 @@ public:
 	PathNode* GetLinkedNode() const	{ return m_from; }
 };
 
-PathNode* Visit(PathNode* pFrom, const Vector2 to, std::vector<bool>& visited, const unsigned char* pMap, const int& nWidth, const int& nHeight)
+PathNode* Visit(PathNode* pFrom, const Vector2 to, std::vector<PathNode*>& visited, const unsigned char* pMap, const int& nWidth, const int& nHeight)
 {
 	const int index = to.PosToIndex();
-	if (to.X < 0 || to.Y < 0 || to.X >= nWidth || to.Y >= nHeight || visited[index])
+	if (to.X < 0 || to.Y < 0 || to.X >= nWidth || to.Y >= nHeight || !pMap[index])
 		return nullptr;
 
-	visited[index] = true;
-	return pMap[index] ? new PathNode(to, pFrom) : nullptr;
+	if (visited[index] && pFrom->GetDistanceFromStart() + 1 >= visited[index]->GetDistanceFromStart())
+		return nullptr;
+
+	visited[index] = new PathNode(to, pFrom);
+	return visited[index];
 }
 
 bool Compare(PathNode* a, PathNode* b)
@@ -132,14 +135,6 @@ void Enqueue(
 	AddToHeapIfExists(d, target, priorityHeap);	
 }
 
-void FreeQueuedNodes(std::vector<PathNode*>& pDirectedPriorityQueues)
-{
-	while (PathNode * ptr = MoveToNext(pDirectedPriorityQueues))
-	{
-		delete ptr;
-	}
-}
-
 int FindPath(
 	const int nStartX, 
 	const int nStartY,
@@ -158,12 +153,11 @@ int FindPath(
 	const Vector2 start(nStartX, nStartY, xStep, yStep);
 
 	// Cast to cleanup overflow warning.
-	std::vector<bool> visited(static_cast<const int64_t>(nMapHeight) * nMapWidth, 0);
-	visited[start.PosToIndex()] = true;
-
+	std::vector<PathNode*> pathMap(static_cast<const int64_t>(nMapHeight) * nMapWidth, nullptr);
 	std::vector<PathNode*> availableNodes;
 	auto current = new PathNode(start, nullptr);
 	current->SetScore(target);
+	pathMap[start.PosToIndex()] = current;
 
 	int stepCount = NO_PATH_EXISTS;
 	while (current)
@@ -171,39 +165,33 @@ int FindPath(
 		if (current->GetPosition() == target)
 		{
 			stepCount = current->GetDistanceFromStart();
-			while (current->GetLinkedNode())
-			{
-				pOutBuffer[current->GetDistanceFromStart() - 1] = current->GetPosition().PosToIndex();
-				auto currPtr = current;
-				current = current->GetLinkedNode();
-				delete currPtr;
-			}
-
-			break;
 		}
 
-		// If we're here and current->GetDistanceFromStart() == nOutBufferSize skip 
-		// visitation, this is no longer a path, but it's worth testing remaining potentials
-		// in case we have some matching scores that were unlucky in sorting.
-		if (current->GetDistanceFromStart() < nOutBufferSize)
+		// Initially we want to be sure we have enough rope to reach the target, and once
+		// we've found it we want to make sure not to walk any further than we already know we have to.
+		if (current->GetDistanceFromStart() < nOutBufferSize && (stepCount == NO_PATH_EXISTS || current->GetDistanceFromStart() < stepCount))
 		{
-			PathNode* l = Visit(current, STEP_LEFT(current), visited, pMap, nMapWidth, nMapHeight);
-			PathNode* r = Visit(current, STEP_RIGHT(current), visited, pMap, nMapWidth, nMapHeight);
-			PathNode* u = Visit(current, STEP_UP(current), visited, pMap, nMapWidth, nMapHeight);
-			PathNode* d = Visit(current, STEP_DOWN(current), visited, pMap, nMapWidth, nMapHeight);
+			PathNode* l = Visit(current, STEP_LEFT(current), pathMap, pMap, nMapWidth, nMapHeight);
+			PathNode* r = Visit(current, STEP_RIGHT(current), pathMap, pMap, nMapWidth, nMapHeight);
+			PathNode* u = Visit(current, STEP_UP(current), pathMap, pMap, nMapWidth, nMapHeight);
+			PathNode* d = Visit(current, STEP_DOWN(current), pathMap, pMap, nMapWidth, nMapHeight);
 			Enqueue(availableNodes, l, r, u, d, target);
 		}
-				
-		current = MoveToNext(availableNodes);		
+		
+		current = MoveToNext(availableNodes);
 	}
 
-	FreeQueuedNodes(availableNodes);
-	while (current)
+	PathNode* goal = pathMap[target.PosToIndex()];
+	if (goal)
 	{
-		auto currPtr = current;
-		current = current->GetLinkedNode();
-		delete currPtr;
+		while (goal->GetLinkedNode())
+		{
+			pOutBuffer[goal->GetDistanceFromStart() - 1] = goal->GetPosition().PosToIndex();
+			auto currPtr = goal;
+			goal = goal->GetLinkedNode();
+			delete currPtr;
+		}
 	}
-	
+
 	return stepCount;
 }

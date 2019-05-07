@@ -5,10 +5,10 @@
 
 void Test5By5Complex(
 	int* outBuffer,
-	int startX = 0,
-	int startY = 0,
-	int endX = 2,
-	int endY = 2,
+	int startX = 2,
+	int startY = 2,
+	int endX = 0,
+	int endY = 0,
 	int mapWidth = 5,
 	int mapHeight = 5,	
 	const int outBufferLen = 8)
@@ -19,7 +19,7 @@ void Test5By5Complex(
 	{
 		1, 1, 1, 1, 1,
 		1, 0, 0, 0, 1,
-		1, 1, 1, 1, 1,
+		1, 0, 1, 1, 1,
 		1, 0, 0, 1, 0,
 		1, 1, 1, 1, 0,
 	};
@@ -44,26 +44,28 @@ void Test5By5Complex(
 	}
 }
 
-void Test6By6Complex(
+void Test8By8Complex(
 	int* outBuffer,
 	int startX = 0,
 	int startY = 0,
 	int endX = 2,
-	int endY = 2,
-	int mapWidth = 6,
-	int mapHeight = 6,
-	const int outBufferLen = 20)
+	int endY = 3,
+	int mapWidth = 8,
+	int mapHeight = 8,
+	const int outBufferLen = 200)
 {
-	std::cout << "============6by6Complex============" << std::endl;
+	std::cout << "============8by8Complex============" << std::endl;
 	// Test code.
-	unsigned char map[36] =
+	unsigned char map[64] =
 	{
-		1, 1, 1, 1, 1, 1,
-		1, 0, 0, 0, 0, 1,
-		1, 0, 1, 1, 1, 1,
-		1, 0, 0, 0, 1, 0,
-		1, 0, 0, 0, 1, 0,
-		1, 1, 1, 1, 1, 0,
+		1, 1, 1, 1, 1, 1, 1, 1,
+		1, 0, 0, 0, 0, 1, 1, 1,
+		1, 0, 1, 1, 1, 1, 1, 1,
+		1, 0, 1, 0, 1, 1, 1, 1,
+		1, 0, 0, 0, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 1, 1, 1, 1, 1,
 	};
 
 	int steps = FindPath(startX, startY, endX, endY, map, mapWidth, mapHeight, outBuffer, outBufferLen);
@@ -90,11 +92,11 @@ void Test6By6Widening(
 	int* outBuffer,
 	int startX = 0,
 	int startY = 0,
-	int endX = 4,
-	int endY = 4,
+	int endX = 5,
+	int endY = 0,
 	int mapWidth = 6,
 	int mapHeight = 6,
-	const int outBufferLen = 7)
+	const int outBufferLen = 20)
 {
 	std::cout << "============6by6Widening============" << std::endl;
 	// Test code.
@@ -259,7 +261,7 @@ void Test5By4Winding(
 	int startX = 0,
 	int startY = 0,
 	int endX = 4,
-	int endY = 1,
+	int endY = 2,
 	int mapWidth = 5,
 	int mapHeight = 4,
 	const int outBufferLen = 12)
@@ -352,7 +354,7 @@ void Test5By5Reverse(
 	// Test code.
 	unsigned char map[25] =
 	{
-		1, 1, 1, 1, 1,
+		1, 1, 0, 1, 1,
 		1, 1, 0, 1, 1,
 		1, 1, 0, 1, 1,
 		1, 1, 1, 1, 1,
@@ -383,15 +385,15 @@ int main()
 {
 	const int outBufferLen = 25;
 	int outBuffer[outBufferLen];
-	Test5By5Complex(outBuffer);
-	Test5By5HollowCenter(outBuffer);
-	Test5By5ZigZag(outBuffer);
-	Test5By5Open(outBuffer);
-	Test6By6Complex(outBuffer);
-	Test6By6Widening(outBuffer);
-	Test5By5MiddleOut(outBuffer);
-	Test5By5Reverse(outBuffer);
-	Test5By4Winding(outBuffer);
+	//Test5By5Complex(outBuffer);
+	//Test5By5HollowCenter(outBuffer);
+	//Test5By5ZigZag(outBuffer);
+	//Test5By5Open(outBuffer);
+	Test8By8Complex(outBuffer);
+	//Test6By6Widening(outBuffer);
+	//Test5By5MiddleOut(outBuffer);
+	//Test5By5Reverse(outBuffer);
+	//Test5By4Winding(outBuffer);
 
 	return 0;
 }
