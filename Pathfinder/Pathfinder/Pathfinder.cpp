@@ -27,7 +27,8 @@ struct Vector2
 	int m_xStep;
 	int m_yStep;
 
-	int PosToIndex() const { return X * m_xStep + Y * m_yStep; }
+	int PosToIndex()				 const { return X * m_xStep + Y * m_yStep; }
+	int SqDistance(const Vector2 to) const { return pow(X - to.X, 2) + pow(Y - to.Y, 2); }
 
 	bool operator==(const Vector2 r) const { return X == r.X && Y == r.Y; }
 	bool operator!=(const Vector2 r) const { return X != r.X || Y != r.Y; }
@@ -38,8 +39,10 @@ class PathNode
 	PathNode* m_from;
 	Vector2 m_position;
 	int m_distanceFromStart;
+	float m_score;
 	PathNode()
 	{
+		m_score = 0;
 		m_from = nullptr;
 		m_distanceFromStart = 0;
 	}
@@ -47,6 +50,7 @@ class PathNode
 public:
 	PathNode(Vector2 pos, PathNode* from)
 	{
+		m_score = 0;
 		m_position = pos;
 		if (from)
 		{
@@ -60,6 +64,12 @@ public:
 		}		
 	}
 
+	const float& GetScore() const { return m_score; }
+	void SetScore(const Vector2& target)
+	{
+		int dist = m_position.SqDistance(target);
+		m_score = dist == 0 ? INT_MAX : 1.0f / m_position.SqDistance(target);
+	}
 	Vector2& GetPosition()			{ return m_position; }
 	int& GetDistanceFromStart()		{ return m_distanceFromStart; }
 	PathNode* GetLinkedNode() const	{ return m_from; }
@@ -71,28 +81,15 @@ PathNode* Visit(PathNode* pFrom, const Vector2 to, std::vector<bool>& visited, c
 	if (to.X < 0 || to.Y < 0 || to.X >= nWidth || to.Y >= nHeight || visited[index])
 		return nullptr;
 
-	visited[index] = 1;
+	visited[index] = true;
 	return pMap[index] ? new PathNode(to, pFrom) : nullptr;
 }
 
-int GetXScore(PathNode* pTo, Vector2& current, Vector2& target)
+bool Compare(PathNode* a, PathNode* b)
 {
-	if (!pTo || current.X == target.X) 
-		return PUSH;
-	if (abs(current.X - target.X) >= abs(pTo->GetPosition().X - target.X)) 
-		return PROGRESS;
-
-	return NO_PROGRESS;
-}
-
-int GetYScore(PathNode* pTo, Vector2& current, Vector2& target)
-{
-	if (!pTo || current.Y == target.Y) 
-		return PUSH;
-	if (abs(current.Y - target.Y) >= abs(pTo->GetPosition().Y - target.Y)) 
-		return PROGRESS;
-
-	return NO_PROGRESS;
+	if (!a) return false;
+	if (!b) return true;
+	return a->GetScore() < b->GetScore();
 }
 
 void SetInsertionOrder(PathNode* pA, PathNode* pB, PathNode** pOutFirst, PathNode** pOutSecond, bool favorA)
@@ -109,65 +106,44 @@ void SetInsertionOrder(PathNode* pA, PathNode* pB, PathNode** pOutFirst, PathNod
 	}
 }
 
-PathNode* MoveToNext(std::queue<PathNode*>* pVisitQueues)
-{
-	PathNode* next = nullptr;
-	for (int i = 0; i < 4; i++)
+PathNode* MoveToNext(std::vector<PathNode*>& priorityHeap)
+{	
+	if (priorityHeap.empty())
 	{
-		if (!pVisitQueues[i].empty())
-		{
-			next = pVisitQueues[i].front();
-			pVisitQueues[i].pop();
-			break;
-		}
+		return nullptr;
 	}
 
-	return next;
+	auto ret = priorityHeap[0];
+	std::pop_heap(priorityHeap.begin(), priorityHeap.end(), Compare);
+	priorityHeap.pop_back();
+	return ret;
 }
 
-PathNode* EnqueueAndMoveToNext(
-	std::queue<PathNode*>* pPriorityQueues, 
+void AddToHeapIfExists(PathNode* pPathNode, const Vector2& target, std::vector<PathNode*>& priorityHeap)
+{
+	if (pPathNode)
+	{
+		pPathNode->SetScore(target);
+		priorityHeap.push_back(pPathNode);
+		std::push_heap(priorityHeap.begin(), priorityHeap.end(), Compare);
+	}
+}
+
+void Enqueue(
+	std::vector<PathNode*>& priorityHeap,
 	PathNode* l, 
 	PathNode* r, 
 	PathNode* u, 
 	PathNode* d, 
-	Vector2& current, 
-	Vector2& target)
+	const Vector2& target)
 {
-	// What I'd really like here is to consider the score of each node relative to the goal
-	// and have the queue live in a single heap, instead of only testing progress, but at least 
-	// with a binary progress/no progress we ensure each step we're always heading in the right 
-	// direction when possible, even if we're not looking back for the most recent optimal node.
-
-	PathNode* first  = nullptr;
-	PathNode* second = nullptr;
-	PathNode* third  = nullptr;
-	PathNode* fourth = nullptr;
-
-	const int lScore = GetXScore(l, current, target);
-	const int rScore = GetXScore(r, current, target);
-	const int uScore = GetYScore(u, current, target);
-	const int dScore = GetYScore(d, current, target);
-	if (lScore == PROGRESS || rScore == PROGRESS)
-	{
-		SetInsertionOrder(l, r, &first, &fourth, lScore == PROGRESS);
-		SetInsertionOrder(u, d, &second, &third, uScore == PROGRESS);
-	}
-	else
-	{
-		SetInsertionOrder(u, d, &first, &fourth, uScore == PROGRESS);
-		SetInsertionOrder(l, r, &second, &third, lScore == PROGRESS);
-	}
-
-	if (first)  pPriorityQueues[0].push(first);
-	if (second) pPriorityQueues[1].push(second);
-	if (third)  pPriorityQueues[2].push(third);
-	if (fourth) pPriorityQueues[3].push(fourth);
-
-	return MoveToNext(pPriorityQueues);
+	AddToHeapIfExists(l, target, priorityHeap);
+	AddToHeapIfExists(u, target, priorityHeap);
+	AddToHeapIfExists(r, target, priorityHeap);
+	AddToHeapIfExists(d, target, priorityHeap);	
 }
 
-void FreeQueuedNodes(std::queue<PathNode*>* pDirectedPriorityQueues)
+void FreeQueuedNodes(std::vector<PathNode*>& pDirectedPriorityQueues)
 {
 	while (PathNode * ptr = MoveToNext(pDirectedPriorityQueues))
 	{
@@ -175,27 +151,33 @@ void FreeQueuedNodes(std::queue<PathNode*>* pDirectedPriorityQueues)
 	}
 }
 
-int FindPath(const int nStartX, const int nStartY,
-	const int nTargetX, const int nTargetY,
-	const unsigned char* pMap, const int nMapWidth, const int nMapHeight,
-	int* pOutBuffer, const int nOutBufferSize)
+int FindPath(
+	const int nStartX, 
+	const int nStartY,
+	const int nTargetX, 
+	const int nTargetY,
+	const unsigned char* pMap, 
+	const int nMapWidth, 
+	const int nMapHeight,
+	int* pOutBuffer, 
+	const int nOutBufferSize)
 {
 	const int yStep = sizeof(char) * nMapWidth;
 	const int xStep = sizeof(char);
 
-	Vector2 target(nTargetX, nTargetY, xStep, yStep);
-	Vector2 start(nStartX, nStartY, xStep, yStep);
+	const Vector2 target(nTargetX, nTargetY, xStep, yStep);
+	const Vector2 start(nStartX, nStartY, xStep, yStep);
 
 	// Cast to cleanup overflow warning.
 	std::vector<bool> visited(static_cast<const int64_t>(nMapHeight) * nMapWidth, 0);
-	visited[start.PosToIndex()] = 1;
+	visited[start.PosToIndex()] = true;
 
-	std::queue<PathNode*> directedPriorityQueues[4];	
+	std::vector<PathNode*> availableNodes;
 	auto current = new PathNode(start, nullptr);
+	current->SetScore(target);
 
 	int stepCount = NO_PATH_EXISTS;
-	
-	while (current && current->GetDistanceFromStart() <= nOutBufferSize)
+	while (current)
 	{
 		if (current->GetPosition() == target)
 		{
@@ -210,15 +192,22 @@ int FindPath(const int nStartX, const int nStartY,
 
 			break;
 		}
+
+		// If we're here and current->GetDistanceFromStart() == nOutBufferSize skip 
+		// visitation, this is no longer a path, but it's worth testing remaining potentials.
+		if (current->GetDistanceFromStart() < nOutBufferSize)
+		{
+			PathNode* l = Visit(current, STEP_LEFT(current), visited, pMap, nMapWidth, nMapHeight);
+			PathNode* r = Visit(current, STEP_RIGHT(current), visited, pMap, nMapWidth, nMapHeight);
+			PathNode* u = Visit(current, STEP_UP(current), visited, pMap, nMapWidth, nMapHeight);
+			PathNode* d = Visit(current, STEP_DOWN(current), visited, pMap, nMapWidth, nMapHeight);
+			Enqueue(availableNodes, l, r, u, d, target);
+		}
 				
-		PathNode* l = Visit(current, STEP_LEFT(current), visited, pMap, nMapWidth, nMapHeight);
-		PathNode* r = Visit(current, STEP_RIGHT(current), visited, pMap, nMapWidth, nMapHeight);
-		PathNode* u = Visit(current, STEP_UP(current), visited, pMap, nMapWidth, nMapHeight);
-		PathNode* d = Visit(current, STEP_DOWN(current), visited, pMap, nMapWidth, nMapHeight);
-		current = EnqueueAndMoveToNext(directedPriorityQueues, l, r, u, d, current->GetPosition(), target);
+		current = MoveToNext(availableNodes);		
 	}
 
-	FreeQueuedNodes(directedPriorityQueues);
+	FreeQueuedNodes(availableNodes);
 	while (current)
 	{
 		auto currPtr = current;
