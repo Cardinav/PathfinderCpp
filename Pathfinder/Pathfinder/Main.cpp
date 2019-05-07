@@ -19,7 +19,7 @@ void Test5By5Complex(
 	{
 		1, 1, 1, 1, 1,
 		1, 0, 0, 0, 1,
-		1, 0, 1, 1, 1,
+		1, 1, 1, 1, 1,
 		1, 0, 0, 1, 0,
 		1, 1, 1, 1, 0,
 	};
@@ -132,8 +132,8 @@ void Test5By5HollowCenter(
 	int* outBuffer,
 	int startX = 0,
 	int startY = 0,
-	int endX = 3,
-	int endY = 4,
+	int endX = 2,
+	int endY = 2,
 	int mapWidth = 5,
 	int mapHeight = 5,
 	const int outBufferLen = 12)
@@ -264,7 +264,7 @@ void Test5By4Winding(
 	int mapHeight = 4,
 	const int outBufferLen = 12)
 {
-	std::cout << "============5by5Winding============" << std::endl;
+	std::cout << "============5by4Winding============" << std::endl;
 
 	// Test code.
 	unsigned char map[25] =
@@ -391,6 +391,7 @@ int main()
 	Test6By6Widening(outBuffer);
 	Test5By5MiddleOut(outBuffer);
 	Test5By5Reverse(outBuffer);
+	Test5By4Winding(outBuffer);
 
 	return 0;
 }

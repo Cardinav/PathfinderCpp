@@ -8,6 +8,8 @@
 #define STEP_UP(node) Vector2(node->GetPosition().X, node->GetPosition().Y - 1, xStep, yStep)
 #define STEP_DOWN(node) Vector2(node->GetPosition().X, node->GetPosition().Y + 1, xStep, yStep)
 
+#define INT_MAX 2147483647 // Redefining here for environment compatibility.
+
 // Compiled using Visual Studio 16.0.1
 
 struct Vector2
@@ -92,19 +94,6 @@ bool Compare(PathNode* a, PathNode* b)
 	return a->GetScore() < b->GetScore();
 }
 
-void SetInsertionOrder(PathNode* pA, PathNode* pB, PathNode** pOutFirst, PathNode** pOutSecond, bool favorA)
-{
-	if (favorA)
-	{
-		*pOutFirst = pA;
-		*pOutSecond = pB;
-	}
-	else
-	{
-		*pOutFirst = pB;
-		*pOutSecond = pA;
-	}
-}
 
 PathNode* MoveToNext(std::vector<PathNode*>& priorityHeap)
 {	
@@ -194,7 +183,8 @@ int FindPath(
 		}
 
 		// If we're here and current->GetDistanceFromStart() == nOutBufferSize skip 
-		// visitation, this is no longer a path, but it's worth testing remaining potentials.
+		// visitation, this is no longer a path, but it's worth testing remaining potentials
+		// in case we have some matching scores that were unlucky in sorting.
 		if (current->GetDistanceFromStart() < nOutBufferSize)
 		{
 			PathNode* l = Visit(current, STEP_LEFT(current), visited, pMap, nMapWidth, nMapHeight);
