@@ -146,6 +146,12 @@ int FindPath(
 	int* pOutBuffer, 
 	const int nOutBufferSize)
 {
+	// Minimum distance required.
+	if (abs(nTargetX - nStartX) + abs(nTargetY - nStartY) > nOutBufferSize)
+	{
+		return NO_PATH_EXISTS;
+	}
+
 	const int yStep = sizeof(char) * nMapWidth;
 	const int xStep = sizeof(char);
 
