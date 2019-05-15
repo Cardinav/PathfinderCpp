@@ -31,25 +31,27 @@ struct Vector2
 
 struct MapContext
 {
+	const unsigned char* m_pMap;
+	int m_mapWidth;
+	int m_mapHeight;
+	int m_xStep;
+	int m_yStep;
+	Vector2 m_start;
+	Vector2 m_target;
+
 	MapContext(const unsigned char* pMap, int mapWidth, int mapHeight, int xStep, int yStep, const Vector2& start, const Vector2& target)
 	{
-		Map = pMap;
-		MapWidth = mapWidth;
-		MapHeight = mapHeight;
-		X_Step = xStep;
-		Y_Step = yStep;
-		Start = start;
-		Target = target;
+		m_pMap = pMap;
+		m_mapWidth = mapWidth;
+		m_mapHeight = mapHeight;
+		m_xStep = xStep;
+		m_yStep = yStep;
+		m_start = start;
+		m_target = target;
 	}
 
-	const unsigned char* Map;
-	int MapWidth;
-	int MapHeight;
-	int X_Step;
-	int Y_Step;
-	Vector2 Start;
-	Vector2 Target;
-	int PosToIndex(const Vector2& pos) const { return pos.X * X_Step + pos.Y * Y_Step; }
+
+	int PosToIndex(const Vector2& pos) const { return pos.X * m_xStep + pos.Y * m_yStep; }
 };
 
 class PathNode
@@ -95,7 +97,7 @@ public:
 
 bool TestPosition(const Vector2& to, const MapContext& context)
 {
-	return !(to.X < 0 || to.Y < 0 || to.X >= context.MapWidth || to.Y >= context.MapHeight || !context.Map[context.PosToIndex(to)]);
+	return !(to.X < 0 || to.Y < 0 || to.X >= context.m_mapWidth || to.Y >= context.m_mapHeight || !context.m_pMap[context.PosToIndex(to)]);
 }
 
 PathNode* Visit(PathNode* pFrom, const Vector2 to, std::vector<PathNode*>& visited, const MapContext& context)
@@ -166,11 +168,11 @@ void Enqueue(
 
 bool SanityTestContext(const MapContext& context)
 {
-	const Vector2& start  = context.Start;
-	const Vector2& target = context.Target;
+	const Vector2& start  = context.m_start;
+	const Vector2& target = context.m_target;
 
 	// Sanity the points are viable...
-	if (!context.Map[context.PosToIndex(context.Start)] || !context.Map[context.PosToIndex(target)])
+	if (!context.m_pMap[context.PosToIndex(context.m_start)] || !context.m_pMap[context.PosToIndex(target)])
 	{
 		return false;
 	}
