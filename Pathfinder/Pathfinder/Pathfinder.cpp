@@ -3,10 +3,10 @@
 #include <queue>
 #include <cmath>
 
-#define STEP_LEFT(node) Vector2(node->GetPosition().X - 1, node->GetPosition().Y, xStep, yStep)
-#define STEP_RIGHT(node) Vector2(node->GetPosition().X + 1, node->GetPosition().Y, xStep, yStep)
-#define STEP_UP(node) Vector2(node->GetPosition().X, node->GetPosition().Y - 1, xStep, yStep)
-#define STEP_DOWN(node) Vector2(node->GetPosition().X, node->GetPosition().Y + 1, xStep, yStep)
+#define STEP_LEFT(node)	 Vector2(node->GetPosition().X - 1, node->GetPosition().Y)
+#define STEP_RIGHT(node) Vector2(node->GetPosition().X + 1, node->GetPosition().Y)
+#define STEP_UP(node)	 Vector2(node->GetPosition().X, node->GetPosition().Y - 1)
+#define STEP_DOWN(node)  Vector2(node->GetPosition().X, node->GetPosition().Y + 1)
 
 #define INT_MAX 2147483647 // Redefining here for environment compatibility.
 
@@ -14,26 +14,42 @@
 
 struct Vector2
 {
-	Vector2() : X(0), Y(0), m_xStep(1), m_yStep(1) {}
-	Vector2(int x, int y, int xStep, int yStep) 
+	Vector2() : X(0), Y(0) {}
+	Vector2(int x, int y) 
 	{
-		X		= x;
-		Y		= y;
-		m_xStep = xStep;
-		m_yStep = yStep;
+		X = x;
+		Y = y;
 	}
 
 	int X;
 	int Y;
 
-	int m_xStep;
-	int m_yStep;
-
-	int PosToIndex()				 const { return X * m_xStep + Y * m_yStep; }
 	int SqDistance(const Vector2 to) const { return pow(X - to.X, 2) + pow(Y - to.Y, 2); }
-
 	bool operator==(const Vector2 r) const { return X == r.X && Y == r.Y; }
 	bool operator!=(const Vector2 r) const { return X != r.X || Y != r.Y; }
+};
+
+struct MapContext
+{
+	MapContext(const unsigned char* pMap, int mapWidth, int mapHeight, int xStep, int yStep, const Vector2& start, const Vector2& target)
+	{
+		Map = pMap;
+		MapWidth = mapWidth;
+		MapHeight = mapHeight;
+		X_Step = xStep;
+		Y_Step = yStep;
+		Start = start;
+		Target = target;
+	}
+
+	const unsigned char* Map;
+	int MapWidth;
+	int MapHeight;
+	int X_Step;
+	int Y_Step;
+	Vector2 Start;
+	Vector2 Target;
+	int PosToIndex(const Vector2& pos) const { return pos.X * X_Step + pos.Y * Y_Step; }
 };
 
 class PathNode
@@ -69,24 +85,37 @@ public:
 	const float& GetScore() const { return m_score; }
 	void SetScore(const Vector2& target)
 	{
-		int dist = m_position.SqDistance(target);
-		m_score = dist == 0 ? INT_MAX : 1.0f / m_position.SqDistance(target);
+		int distance = m_position.SqDistance(target);
+		m_score = distance == 0 ? INT_MAX : 1.0f / m_position.SqDistance(target);
 	}
 	Vector2& GetPosition()			{ return m_position; }
 	int& GetDistanceFromStart()		{ return m_distanceFromStart; }
 	PathNode* GetLinkedNode() const	{ return m_from; }
 };
 
-PathNode* Visit(PathNode* pFrom, const Vector2 to, std::vector<PathNode*>& visited, const unsigned char* pMap, const int& nWidth, const int& nHeight)
+bool TestPosition(const Vector2& to, const MapContext& context)
 {
-	const int index = to.PosToIndex();
-	if (to.X < 0 || to.Y < 0 || to.X >= nWidth || to.Y >= nHeight || !pMap[index])
+	return !(to.X < 0 || to.Y < 0 || to.X >= context.MapWidth || to.Y >= context.MapHeight || !context.Map[context.PosToIndex(to)]);
+}
+
+PathNode* Visit(PathNode* pFrom, const Vector2 to, std::vector<PathNode*>& visited, const MapContext& context)
+{
+	if (!TestPosition(to, context))
 		return nullptr;
 
+	const int index = context.PosToIndex(to);
 	if (visited[index] && pFrom->GetDistanceFromStart() + 1 >= visited[index]->GetDistanceFromStart())
 		return nullptr;
 
-	visited[index] = new PathNode(to, pFrom);
+	if (!visited[index])
+	{
+		visited[index] = new PathNode(to, pFrom);
+	}
+	else
+	{
+		*visited[index] = PathNode(to, pFrom);
+	}
+	
 	return visited[index];
 }
 
@@ -135,6 +164,39 @@ void Enqueue(
 	AddToHeapIfExists(d, target, priorityHeap);	
 }
 
+bool SanityTestContext(const MapContext& context)
+{
+	const Vector2& start  = context.Start;
+	const Vector2& target = context.Target;
+
+	// Sanity the points are viable...
+	if (!context.Map[context.PosToIndex(context.Start)] || !context.Map[context.PosToIndex(target)])
+	{
+		return false;
+	}
+
+	// ...and aren't themselves islands. L, U, R, D
+	if ((!TestPosition(Vector2(start.X - 1, start.Y), context) &&
+		!TestPosition(Vector2(start.X, start.Y - 1), context) &&
+		!TestPosition(Vector2(start.X + 1, start.Y), context) &&
+		!TestPosition(Vector2(start.X, start.Y + 1), context)) ||
+		(!TestPosition(Vector2(target.X - 1, target.Y), context) &&
+		!TestPosition(Vector2(target.X, target.Y - 1), context) &&
+		!TestPosition(Vector2(target.X + 1, target.Y), context) &&
+		!TestPosition(Vector2(target.X, target.Y + 1), context)))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+void FreeNodes(const std::vector<PathNode*>& nodes)
+{
+	for (const auto& node : nodes)
+		delete node;
+}
+
 int FindPath(
 	const int nStartX, 
 	const int nStartY,
@@ -155,15 +217,22 @@ int FindPath(
 	const int yStep = sizeof(char) * nMapWidth;
 	const int xStep = sizeof(char);
 
-	const Vector2 target(nTargetX, nTargetY, xStep, yStep);
-	const Vector2 start(nStartX, nStartY, xStep, yStep);
+	const Vector2 target(nTargetX, nTargetY);
+	const Vector2 start(nStartX, nStartY);
+
+	const MapContext context(pMap, nMapWidth, nMapHeight, xStep, yStep, start, target);
+	if (!SanityTestContext(context))
+	{
+		return NO_PATH_EXISTS;
+	}
 
 	// Cast to cleanup overflow warning.
 	std::vector<PathNode*> pathMap(static_cast<const int64_t>(nMapHeight) * nMapWidth, nullptr);
 	std::vector<PathNode*> availableNodes;
 	auto current = new PathNode(start, nullptr);
+
 	current->SetScore(target);
-	pathMap[start.PosToIndex()] = current;
+	pathMap[context.PosToIndex(start)] = current;
 
 	int stepCount = NO_PATH_EXISTS;
 	while (current)
@@ -177,27 +246,27 @@ int FindPath(
 		// we've found it we want to make sure not to walk any further than we already know we have to.
 		if (current->GetDistanceFromStart() < nOutBufferSize && (stepCount == NO_PATH_EXISTS || current->GetDistanceFromStart() < stepCount))
 		{
-			PathNode* l = Visit(current, STEP_LEFT(current), pathMap, pMap, nMapWidth, nMapHeight);
-			PathNode* r = Visit(current, STEP_RIGHT(current), pathMap, pMap, nMapWidth, nMapHeight);
-			PathNode* u = Visit(current, STEP_UP(current), pathMap, pMap, nMapWidth, nMapHeight);
-			PathNode* d = Visit(current, STEP_DOWN(current), pathMap, pMap, nMapWidth, nMapHeight);
+			PathNode* l = Visit(current, STEP_LEFT(current), pathMap, context);
+			PathNode* r = Visit(current, STEP_RIGHT(current), pathMap, context);
+			PathNode* u = Visit(current, STEP_UP(current), pathMap, context);
+			PathNode* d = Visit(current, STEP_DOWN(current), pathMap, context);
 			Enqueue(availableNodes, l, r, u, d, target);
 		}
 		
 		current = MoveToNext(availableNodes);
 	}
 
-	PathNode* goal = pathMap[target.PosToIndex()];
+	PathNode* goal = pathMap[context.PosToIndex(target)];
 	if (goal)
 	{
 		while (goal->GetLinkedNode())
 		{
-			pOutBuffer[goal->GetDistanceFromStart() - 1] = goal->GetPosition().PosToIndex();
-			auto currPtr = goal;
+			pOutBuffer[goal->GetDistanceFromStart() - 1] = context.PosToIndex(goal->GetPosition());
 			goal = goal->GetLinkedNode();
-			delete currPtr;
 		}
 	}
 
+	FreeNodes(availableNodes);
+	FreeNodes(pathMap);
 	return stepCount;
 }
