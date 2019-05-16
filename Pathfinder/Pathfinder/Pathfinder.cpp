@@ -3,14 +3,9 @@
 #include <queue>
 #include <cmath>
 
-#define STEP_LEFT(node)	 Vector2(node->GetPosition().X - 1, node->GetPosition().Y)
-#define STEP_RIGHT(node) Vector2(node->GetPosition().X + 1, node->GetPosition().Y)
-#define STEP_UP(node)	 Vector2(node->GetPosition().X, node->GetPosition().Y - 1)
-#define STEP_DOWN(node)  Vector2(node->GetPosition().X, node->GetPosition().Y + 1)
-
 #define INT_MAX 2147483647 // Redefining here for environment compatibility.
 
-// Compiled using Visual Studio 16.0.1
+// Compiled on Windows 10 using Visual Studio 16.0.1
 
 struct Vector2
 {
@@ -25,6 +20,7 @@ struct Vector2
 	int Y;
 
 	int SqDistance(const Vector2 to) const { return pow(X - to.X, 2) + pow(Y - to.Y, 2); }
+	int GetMinDistanceTo(const Vector2& to) const { return abs(to.X - X) + abs(to.Y - Y); }
 	bool operator==(const Vector2 r) const { return X == r.X && Y == r.Y; }
 	bool operator!=(const Vector2 r) const { return X != r.X || Y != r.Y; }
 };
@@ -49,7 +45,6 @@ struct MapContext
 		m_start = start;
 		m_target = target;
 	}
-
 
 	int PosToIndex(const Vector2& pos) const { return pos.X * m_xStep + pos.Y * m_yStep; }
 };
@@ -103,11 +98,15 @@ bool TestPosition(const Vector2& to, const MapContext& context)
 PathNode* Visit(PathNode* pFrom, const Vector2 to, std::vector<PathNode*>& visited, const MapContext& context)
 {
 	if (!TestPosition(to, context))
+	{
 		return nullptr;
+	}
 
 	const int index = context.PosToIndex(to);
 	if (visited[index] && pFrom->GetDistanceFromStart() + 1 >= visited[index]->GetDistanceFromStart())
+	{
 		return nullptr;
+	}
 
 	if (!visited[index])
 	{
@@ -127,7 +126,6 @@ bool Compare(PathNode* a, PathNode* b)
 	if (!b) return true;
 	return a->GetScore() < b->GetScore();
 }
-
 
 PathNode* MoveToNext(std::vector<PathNode*>& priorityHeap)
 {	
@@ -171,7 +169,7 @@ bool SanityTestContext(const MapContext& context)
 	const Vector2& start  = context.m_start;
 	const Vector2& target = context.m_target;
 
-	// Sanity the points are viable...
+	// Sanity the significant points are viable...
 	if (!context.m_pMap[context.PosToIndex(context.m_start)] || !context.m_pMap[context.PosToIndex(target)])
 	{
 		return false;
@@ -210,17 +208,15 @@ int FindPath(
 	int* pOutBuffer, 
 	const int nOutBufferSize)
 {
-	// Minimum distance required.
-	if (abs(nTargetX - nStartX) + abs(nTargetY - nStartY) > nOutBufferSize)
-	{
-		return NO_PATH_EXISTS;
-	}
-
-	const int yStep = sizeof(char) * nMapWidth;
-	const int xStep = sizeof(char);
+	const int yStep = nMapWidth;
+	const int xStep = 1;
 
 	const Vector2 target(nTargetX, nTargetY);
 	const Vector2 start(nStartX, nStartY);
+	if (start.GetMinDistanceTo(target) > nOutBufferSize)
+	{
+		return NO_PATH_EXISTS;
+	}
 
 	const MapContext context(pMap, nMapWidth, nMapHeight, xStep, yStep, start, target);
 	if (!SanityTestContext(context))
@@ -231,31 +227,37 @@ int FindPath(
 	// Cast to cleanup overflow warning.
 	std::vector<PathNode*> pathMap(static_cast<const int64_t>(nMapHeight) * nMapWidth, nullptr);
 	std::vector<PathNode*> availableNodes;
-	auto current = new PathNode(start, nullptr);
+	auto pCurrent = new PathNode(start, nullptr);
 
-	current->SetScore(target);
-	pathMap[context.PosToIndex(start)] = current;
-
+	pCurrent->SetScore(target);
+	pathMap[context.PosToIndex(start)] = pCurrent;
+		
 	int stepCount = NO_PATH_EXISTS;
-	while (current)
+	while (pCurrent)
 	{
-		if (current->GetPosition() == target)
+		auto& currentNode = *pCurrent;
+		const auto& thisPosition = currentNode.GetPosition();
+		if (thisPosition == target)
 		{
-			stepCount = current->GetDistanceFromStart();
-		}
-
-		// Initially we want to be sure we have enough rope to reach the target, and once
-		// we've found it we want to make sure not to walk any further than we already know we have to.
-		if (current->GetDistanceFromStart() < nOutBufferSize && (stepCount == NO_PATH_EXISTS || current->GetDistanceFromStart() < stepCount))
-		{
-			PathNode* l = Visit(current, STEP_LEFT(current), pathMap, context);
-			PathNode* r = Visit(current, STEP_RIGHT(current), pathMap, context);
-			PathNode* u = Visit(current, STEP_UP(current), pathMap, context);
-			PathNode* d = Visit(current, STEP_DOWN(current), pathMap, context);
-			Enqueue(availableNodes, l, r, u, d, target);
+			// Not backing out here once we've found the target is a weakness on larger maps with 
+			// little obstruction, in terms of big O and a massive pOutputBufferLen, but on a map 
+			// where all nodes score the same and have the same weight, it ensures correctness.
+			stepCount = currentNode.GetDistanceFromStart();
 		}
 		
-		current = MoveToNext(availableNodes);
+		// Initially we want to be sure we have enough rope to reach the target, and once
+		// we've found it we want to make sure not to walk any further than we already know we have to.
+		if (thisPosition.GetMinDistanceTo(target) <= nOutBufferSize - currentNode.GetDistanceFromStart() &&
+			(stepCount == NO_PATH_EXISTS || currentNode.GetDistanceFromStart() + thisPosition.GetMinDistanceTo(target) <= stepCount))
+		{
+			PathNode* l = Visit(pCurrent, Vector2(thisPosition.X - 1, thisPosition.Y), pathMap, context);
+			PathNode* r = Visit(pCurrent, Vector2(thisPosition.X + 1, thisPosition.Y), pathMap, context);
+			PathNode* u = Visit(pCurrent, Vector2(thisPosition.X, thisPosition.Y - 1), pathMap, context);
+			PathNode* d = Visit(pCurrent, Vector2(thisPosition.X, thisPosition.Y + 1), pathMap, context);
+			Enqueue(availableNodes, l, r, u, d, target);				
+		}
+		
+		pCurrent = MoveToNext(availableNodes);
 	}
 
 	PathNode* goal = pathMap[context.PosToIndex(target)];

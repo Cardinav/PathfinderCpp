@@ -51,7 +51,7 @@ void Test8By8Complex(
 	int endY = 3,
 	int mapWidth = 8,
 	int mapHeight = 8,
-	const int outBufferLen = 12)
+	const int outBufferLen = 15)
 {
 	std::cout << "============8by8Complex============" << std::endl;
 	// Test code.
@@ -385,12 +385,12 @@ void Test256by256Long(
 	int startX = 0,
 	int startY = 0,
 	int endX = 511,
-	int endY = 255,
+	int endY = 511,
 	int mapWidth = 512,
-	int mapHeight = 256,
-	const int outBufferLen = 512 * 2)
+	int mapHeight = 512,
+	const int outBufferLen = 1000*1000)
 {
-	const int totalLen = 512 * 256;
+	const int totalLen = 512 * 512;
 	unsigned char* map = new unsigned char[totalLen];
 	for (int i = 0; i < totalLen; i++)
 		map[i] = 1;
@@ -407,6 +407,13 @@ void Test256by256Long(
 		std::cout << outStr << std::endl;
 	}
 
+	//int counter = steps == NO_PATH_EXISTS ? outBufferLen : steps;
+
+	//for (int i = 0; i < counter; i++)
+	//{
+	//	std::cout << outBuffer[i] << std::endl;
+	//}
+
 	delete[] map;
 }
 
@@ -422,7 +429,7 @@ int main()
 	Test5By5MiddleOut(outBuffer);
 	Test5By5Reverse(outBuffer);
 	Test5By4Winding(outBuffer);
-	outBuffer = new int[512 * 2];
+	outBuffer = new int[1000 * 1000];
 	Test256by256Long(outBuffer);
 	
 	delete[] outBuffer;
