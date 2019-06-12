@@ -1,5 +1,7 @@
 #pragma once
 
+#define DEBUG_OUTPUT 0
+
 constexpr auto IMPASSIBLE = 0;
 constexpr auto NO_PATH_EXISTS = -1;
 constexpr auto PROGRESS = 1;

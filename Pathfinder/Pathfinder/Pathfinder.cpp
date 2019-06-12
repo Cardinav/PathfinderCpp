@@ -2,10 +2,11 @@
 #include <vector>
 #include <queue>
 #include <cmath>
-
+#if DEBUG_OUTPUT
+#include <iostream>
+#include <string>
+#endif
 #define INT_MAX 2147483647 // Redefining here for environment compatibility.
-
-// Compiled on Windows 10 using Visual Studio 16.0.1
 
 struct Vector2
 {
@@ -34,8 +35,16 @@ struct MapContext
 	int m_yStep;
 	Vector2 m_start;
 	Vector2 m_target;
+	char m_validChar;
 
-	MapContext(const unsigned char* pMap, int mapWidth, int mapHeight, int xStep, int yStep, const Vector2& start, const Vector2& target)
+	MapContext(
+		const unsigned char* pMap, 
+		int mapWidth, 
+		int mapHeight, 
+		int xStep, 
+		int yStep, 
+		const Vector2& start, 
+		const Vector2& target)
 	{
 		m_pMap = pMap;
 		m_mapWidth = mapWidth;
@@ -44,9 +53,12 @@ struct MapContext
 		m_yStep = yStep;
 		m_start = start;
 		m_target = target;
+		auto& exampleEntry = m_pMap[PosToIndex(m_start)];
+		m_validChar = exampleEntry == 48 /* '0' */ || exampleEntry == 49 /* '1' */ ? '1' : 1;
 	}
 
-	int PosToIndex(const Vector2& pos) const { return pos.X * m_xStep + pos.Y * m_yStep; }
+	int PosToIndex(const Vector2& pos) const { return (pos.X * m_xStep) + (pos.Y * m_yStep); }
+	bool IndexIsValid(const int& index) const { return m_validChar == m_pMap[index]; }
 };
 
 class PathNode
@@ -90,13 +102,33 @@ public:
 	PathNode* GetLinkedNode() const	{ return m_from; }
 };
 
+void PrintDebug(PathNode* pFrom, const Vector2& to, const MapContext& context)
+{
+#if DEBUG_OUTPUT
+	Vector2& fromPos = pFrom->GetPosition();
+	int index = context.PosToIndex(to);
+	char buffer[64];
+	sprintf_s(
+		buffer, 
+		"Point: %c - %d; (%d, %d) To (%d, %d)", 
+		context.m_pMap[context.PosToIndex(to)], 
+		index,
+		fromPos.X, 
+		fromPos.Y,
+		to.X, 
+		to.Y);
+	std::cout << buffer << std::endl;
+#endif
+}
+
 bool TestPosition(const Vector2& to, const MapContext& context)
 {
-	return !(to.X < 0 || to.Y < 0 || to.X >= context.m_mapWidth || to.Y >= context.m_mapHeight || !context.m_pMap[context.PosToIndex(to)]);
+	return !(to.X < 0 || to.Y < 0 || to.X >= context.m_mapWidth || to.Y >= context.m_mapHeight || !context.IndexIsValid(context.PosToIndex(to)));
 }
 
 PathNode* Visit(PathNode* pFrom, const Vector2 to, std::vector<PathNode*>& visited, const MapContext& context)
 {
+	PrintDebug(pFrom, to, context);
 	if (!TestPosition(to, context))
 	{
 		return nullptr;
@@ -134,7 +166,7 @@ PathNode* MoveToNext(std::vector<PathNode*>& priorityHeap)
 		return nullptr;
 	}
 
-	auto ret = priorityHeap[0];
+	const auto ret = priorityHeap[0];
 	std::pop_heap(priorityHeap.begin(), priorityHeap.end(), Compare);
 	priorityHeap.pop_back();
 	return ret;
@@ -170,20 +202,16 @@ bool SanityTestContext(const MapContext& context)
 	const Vector2& target = context.m_target;
 
 	// Sanity the significant points are viable...
-	if (!context.m_pMap[context.PosToIndex(context.m_start)] || !context.m_pMap[context.PosToIndex(target)])
+	if (!context.IndexIsValid(context.PosToIndex(start)) || !context.IndexIsValid(context.PosToIndex(target)))
 	{
 		return false;
 	}
 
-	// ...and aren't themselves islands. L, U, R, D
-	if ((!TestPosition(Vector2(start.X - 1, start.Y), context) &&
-		!TestPosition(Vector2(start.X, start.Y - 1), context) &&
-		!TestPosition(Vector2(start.X + 1, start.Y), context) &&
-		!TestPosition(Vector2(start.X, start.Y + 1), context)) ||
-		(!TestPosition(Vector2(target.X - 1, target.Y), context) &&
+	// ...and target isn't an island. L, U, R, D
+	if (!TestPosition(Vector2(target.X - 1, target.Y), context) &&
 		!TestPosition(Vector2(target.X, target.Y - 1), context) &&
 		!TestPosition(Vector2(target.X + 1, target.Y), context) &&
-		!TestPosition(Vector2(target.X, target.Y + 1), context)))
+		!TestPosition(Vector2(target.X, target.Y + 1), context))
 	{
 		return false;
 	}
