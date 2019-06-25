@@ -3,8 +3,6 @@
 #include <queue>
 #include <cmath>
 
-#define INT_MAX 2147483647 // Redefining here for environment compatibility.
-
 struct Vector2
 {
 	Vector2() : X(0), Y(0) {}
@@ -37,23 +35,21 @@ struct MapContext
 		const unsigned char* pMap, 
 		int mapWidth, 
 		int mapHeight, 
-		int xStep, 
-		int yStep, 
 		const Vector2& start, 
 		const Vector2& target)
 	{
 		m_pMap = pMap;
 		m_mapWidth = mapWidth;
 		m_mapHeight = mapHeight;
-		m_xStep = xStep;
-		m_yStep = yStep;
+		m_xStep = 1;
+		m_yStep = mapWidth;
 		m_start = start;
 		m_target = target;
 		auto& exampleEntry = m_pMap[PosToIndex(m_start)];
 		m_validChar = exampleEntry == 48 /* '0' */ || exampleEntry == 49 /* '1' */ ? '1' : 1;
 	}
 
-	int PosToIndex(const Vector2& pos) const { return (pos.X * m_xStep) + (pos.Y * m_yStep); }
+	int PosToIndex(const Vector2& pos) const  { return (pos.X * m_xStep) + (pos.Y * m_yStep); }
 	bool PosIsValid(const Vector2& pos) const { return IndexIsValid(PosToIndex(pos)); }
 	bool IndexIsValid(const int& index) const { return m_validChar == m_pMap[index]; }
 };
@@ -155,7 +151,8 @@ bool SanityTestContext(const MapContext& context)
 	if (!TestPosition(Vector2(target.X - 1, target.Y), context) &&
 		!TestPosition(Vector2(target.X, target.Y - 1), context) &&
 		!TestPosition(Vector2(target.X + 1, target.Y), context) &&
-		!TestPosition(Vector2(target.X, target.Y + 1), context))
+		!TestPosition(Vector2(target.X, target.Y + 1), context) &&
+		start != target)
 	{
 		return false;
 	}
@@ -182,17 +179,10 @@ int FindPath(
 	int* pOutBuffer, 
 	const int nOutBufferSize)
 {
-	const int yStep = nMapWidth;
-	const int xStep = 1;
-
 	const Vector2 target(nTargetX, nTargetY);
 	const Vector2 start(nStartX, nStartY);
-	if (start.GetMinDistanceTo(target) > nOutBufferSize)
-	{
-		return NO_PATH_EXISTS;
-	}
 
-	const MapContext context(pMap, nMapWidth, nMapHeight, xStep, yStep, start, target);
+	const MapContext context(pMap, nMapWidth, nMapHeight, start, target);
 	if (!SanityTestContext(context))
 	{
 		return NO_PATH_EXISTS;
@@ -216,20 +206,18 @@ int FindPath(
 			break;
 		}
 
-		if (thisPosition.GetMinDistanceTo(target) < nOutBufferSize - currentNode.GetDistanceFromStart())
-		{
-			PathNode* l = Visit(pCurrent, Vector2(thisPosition.X - 1, thisPosition.Y), pathMap, context);
-			PathNode* r = Visit(pCurrent, Vector2(thisPosition.X + 1, thisPosition.Y), pathMap, context);
-			PathNode* u = Visit(pCurrent, Vector2(thisPosition.X, thisPosition.Y - 1), pathMap, context);
-			PathNode* d = Visit(pCurrent, Vector2(thisPosition.X, thisPosition.Y + 1), pathMap, context);
-			Enqueue(availableNodes, l, r, u, d);
-		}
-
+		// Simple Breadth first search over Dykstra's weighted approach.  Useful to  
+		// reduce the variable parts and stay basic when the test cases are unknown.
+		PathNode* l = Visit(pCurrent, Vector2(thisPosition.X - 1, thisPosition.Y), pathMap, context);
+		PathNode* r = Visit(pCurrent, Vector2(thisPosition.X + 1, thisPosition.Y), pathMap, context);
+		PathNode* u = Visit(pCurrent, Vector2(thisPosition.X, thisPosition.Y - 1), pathMap, context);
+		PathNode* d = Visit(pCurrent, Vector2(thisPosition.X, thisPosition.Y + 1), pathMap, context);
+		Enqueue(availableNodes, l, r, u, d);
 		pCurrent = MoveToNext(availableNodes);
 	}
 
 	PathNode* goal = pathMap[context.PosToIndex(target)];
-	if (goal && stepCount != NO_PATH_EXISTS)
+	if (goal && stepCount <= nOutBufferSize)
 	{
 		while (goal->GetLinkedNode())
 		{
